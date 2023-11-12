@@ -3,16 +3,18 @@
 namespace logger {
 namespace config_parser {
 
-YamlConfigParser &
-YamlConfigParser::create(const std::string_view &cfg_file_path) {
+YamlConfigParser &YamlConfigParser::create(
+    const std::string_view &cfg_file_path) {
   static YamlConfigParser instance(cfg_file_path);
   return instance;
 }
 
 YamlConfigParser::YamlConfigParser(const std::string_view &cfg_file_path)
     : config_{YAML::LoadFile(cfg_file_path.data())},
-      log_limits_{ParseLogLimits()}, default_log_context_id_{ParseDefaultLogContextId()},
-      log_appender_type_{ParseLogAppenderType()}, log_appender_params_{ParseLogAppenderParams()} {}
+      log_limits_{ParseLogLimits()},
+      default_log_context_id_{ParseDefaultLogContextId()},
+      log_appender_type_{ParseLogAppenderType()},
+      log_appender_params_{ParseLogAppenderParams()} {}
 
 LogLimits YamlConfigParser::getLogLimits() const { return log_limits_; }
 
@@ -24,17 +26,18 @@ std::string YamlConfigParser::getLogAppenderType() const {
   return log_appender_type_;
 }
 
-const std::map<std::string, std::string> &
-YamlConfigParser::getLogAppenderParams() const {
+const std::map<std::string, std::string>
+    &YamlConfigParser::getLogAppenderParams() const {
   return log_appender_params_;
 }
 
 LogLimits YamlConfigParser::ParseLogLimits() {
   const auto log_limits_node = config_["log_limits"];
-  const auto period =
-      std::chrono::milliseconds(log_limits_node["period_ms"].as<std::uint64_t>());
+  const auto period = std::chrono::milliseconds(
+      log_limits_node["period_ms"].as<std::uint64_t>());
   const auto max_size_during_period =
-      log_limits_node["log_size_limit_during_period_in_bytes"].as<std::size_t>();
+      log_limits_node["log_size_limit_during_period_in_bytes"]
+          .as<std::size_t>();
   return {period, max_size_during_period};
 }
 
@@ -56,5 +59,5 @@ std::map<std::string, std::string> YamlConfigParser::ParseLogAppenderParams() {
   return log_appender_params;
 }
 
-} // namespace config_parser
-} // namespace logger
+}  // namespace config_parser
+}  // namespace logger
