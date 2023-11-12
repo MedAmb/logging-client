@@ -16,7 +16,7 @@ target_include_directories(${RELEASE_TARGET_NAME} PUBLIC include PRIVATE src)
 
 
 add_executable(${PROJECT_NAME}_example src/main.cpp)
-target_link_libraries(${PROJECT_NAME}_example PRIVATE ${RELEASE_TARGET_NAME})
+target_link_libraries(${PROJECT_NAME}_example PRIVATE ${RELEASE_TARGET_NAME} gtest gmock)
 
 
 add_subdirectory(test)

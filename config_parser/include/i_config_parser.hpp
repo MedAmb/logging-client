@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <map>
+#include <optional>
 #include <string>
 
 namespace logger {
@@ -14,7 +15,7 @@ struct LogLimits {
 };
 
 class IConfigParser {
-public:
+ public:
   IConfigParser() = default;
   IConfigParser(const IConfigParser &) = delete;
   IConfigParser(IConfigParser &&) = delete;
@@ -29,11 +30,11 @@ public:
 
   virtual std::string getLogAppenderType() const = 0;
 
-  virtual const std::map<std::string, std::string> &
-  getLogAppenderParams() const = 0;
+  virtual const std::map<std::string, std::string> &getLogAppenderParams()
+      const = 0;
 };
 
-} // namespace config_parser
-} // namespace logger
+}  // namespace config_parser
+}  // namespace logger
 
-#endif // LOGGING_CONFIG_PARSER_I_CONFIG_PARSER_HPP
+#endif  // LOGGING_CONFIG_PARSER_I_CONFIG_PARSER_HPP
