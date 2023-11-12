@@ -1,6 +1,8 @@
 #ifndef LOGGING_CONFIG_PARSER_YAML_CONFIG_PARSER_HPP
 #define LOGGING_CONFIG_PARSER_YAML_CONFIG_PARSER_HPP
 
+#include <memory>
+
 #include "i_config_parser.hpp"
 #include "yaml-cpp/yaml.h"
 
@@ -11,22 +13,24 @@ class YamlConfigParser : public IConfigParser {
  public:
   YamlConfigParser(const YamlConfigParser &) = delete;
   YamlConfigParser(YamlConfigParser &&) = delete;
-  YamlConfigParser &operator=(const YamlConfigParser &) = delete;
   YamlConfigParser &operator=(YamlConfigParser &&) = delete;
+  YamlConfigParser &operator=(const YamlConfigParser &) = delete;
 
   ~YamlConfigParser() override = default;
 
-  LogLimits getLogLimits() const override;
+  LogLimits GetLogLimits() const override;
 
-  std::string getDefaultLogContextId() const override;
+  std::string GetDefaultLogContextId() const override;
 
-  std::string getLogAppenderType() const override;
+  std::string GetLogAppenderType() const override;
 
-  const std::map<std::string, std::string> &getLogAppenderParams()
+  const std::map<std::string, std::string> &GetLogAppenderParams()
       const override;
 
   // can throw YAML::BadFile, YAML::InvalidNode, YAML::BadConversion,
-  static YamlConfigParser &create(const std::string_view &cfg_file_path);
+  static YamlConfigParser &Create(const std::string_view &cfg_file_path);
+
+  static YamlConfigParser &Get();
 
  private:
   explicit YamlConfigParser(const std::string_view &cfg_file_path);
@@ -37,6 +41,8 @@ class YamlConfigParser : public IConfigParser {
   std::map<std::string, std::string> ParseLogAppenderParams();
 
  private:
+  static std::unique_ptr<YamlConfigParser> instance_;
+
   YAML::Node config_;
   const LogLimits log_limits_;
   const std::string default_log_context_id_;

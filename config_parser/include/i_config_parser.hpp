@@ -3,7 +3,6 @@
 
 #include <chrono>
 #include <map>
-#include <optional>
 #include <string>
 
 namespace logger {
@@ -13,6 +12,11 @@ struct LogLimits {
   std::chrono::milliseconds period;
   std::size_t maxSizeDuringPeriod;
 };
+
+inline bool operator==(const LogLimits &lhs, const LogLimits &rhs) {
+  return lhs.period == rhs.period &&
+         lhs.maxSizeDuringPeriod == rhs.maxSizeDuringPeriod;
+}
 
 class IConfigParser {
  public:
@@ -24,13 +28,13 @@ class IConfigParser {
 
   virtual ~IConfigParser() = default;
 
-  virtual LogLimits getLogLimits() const = 0;
+  virtual LogLimits GetLogLimits() const = 0;
 
-  virtual std::string getDefaultLogContextId() const = 0;
+  virtual std::string GetDefaultLogContextId() const = 0;
 
-  virtual std::string getLogAppenderType() const = 0;
+  virtual std::string GetLogAppenderType() const = 0;
 
-  virtual const std::map<std::string, std::string> &getLogAppenderParams()
+  virtual const std::map<std::string, std::string> &GetLogAppenderParams()
       const = 0;
 };
 

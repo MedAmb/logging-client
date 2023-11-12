@@ -3,10 +3,23 @@
 namespace logger {
 namespace config_parser {
 
-YamlConfigParser &YamlConfigParser::create(
+std::unique_ptr<YamlConfigParser> YamlConfigParser::instance_{nullptr};
+
+YamlConfigParser &YamlConfigParser::Create(
     const std::string_view &cfg_file_path) {
-  static YamlConfigParser instance(cfg_file_path);
-  return instance;
+  if (instance_ == nullptr) {
+    instance_ =
+        std::unique_ptr<YamlConfigParser>{new YamlConfigParser{cfg_file_path}};
+  }
+  return *instance_;
+}
+
+YamlConfigParser &YamlConfigParser::Get() {
+  // TODO: let's avoid throwing exceptions, think of better error
+  if (instance_ == nullptr) {
+    throw std::runtime_error{"YamlConfigParser has not been created yet"};
+  }
+  return *instance_;
 }
 
 YamlConfigParser::YamlConfigParser(const std::string_view &cfg_file_path)
@@ -16,18 +29,18 @@ YamlConfigParser::YamlConfigParser(const std::string_view &cfg_file_path)
       log_appender_type_{ParseLogAppenderType()},
       log_appender_params_{ParseLogAppenderParams()} {}
 
-LogLimits YamlConfigParser::getLogLimits() const { return log_limits_; }
+LogLimits YamlConfigParser::GetLogLimits() const { return log_limits_; }
 
-std::string YamlConfigParser::getDefaultLogContextId() const {
+std::string YamlConfigParser::GetDefaultLogContextId() const {
   return default_log_context_id_;
 }
 
-std::string YamlConfigParser::getLogAppenderType() const {
+std::string YamlConfigParser::GetLogAppenderType() const {
   return log_appender_type_;
 }
 
 const std::map<std::string, std::string>
-    &YamlConfigParser::getLogAppenderParams() const {
+    &YamlConfigParser::GetLogAppenderParams() const {
   return log_appender_params_;
 }
 
