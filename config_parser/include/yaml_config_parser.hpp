@@ -1,8 +1,6 @@
 #ifndef LOGGING_CONFIG_PARSER_YAML_CONFIG_PARSER_HPP
 #define LOGGING_CONFIG_PARSER_YAML_CONFIG_PARSER_HPP
 
-#include <memory>
-
 #include "i_config_parser.hpp"
 #include "yaml-cpp/yaml.h"
 
@@ -11,6 +9,8 @@ namespace config_parser {
 
 class YamlConfigParser : public IConfigParser {
  public:
+  explicit YamlConfigParser(const std::string &cfg_file_path);
+
   YamlConfigParser(const YamlConfigParser &) = delete;
   YamlConfigParser(YamlConfigParser &&) = delete;
   YamlConfigParser &operator=(YamlConfigParser &&) = delete;
@@ -18,36 +18,35 @@ class YamlConfigParser : public IConfigParser {
 
   ~YamlConfigParser() override = default;
 
-  LogLimits GetLogLimits() const override;
+  const LogLimits &GetLogLimits() const override;
 
-  std::string GetDefaultLogContextId() const override;
+  const std::array<char, 4> &GetDefaultLogContext() const override;
 
-  std::string GetLogAppenderType() const override;
+  const std::chrono::milliseconds &GetFlushPeriod() const override;
 
-  const std::map<std::string, std::string> &GetLogAppenderParams()
+  const std::string_view &GetTriggerFlushIfLogLevelReaches() const override;
+
+  const std::string_view &GetLogAppenderType() const override;
+
+  const std::map<std::string_view, std::string_view> &GetLogAppenderParams()
       const override;
 
-  // can throw YAML::BadFile, YAML::InvalidNode, YAML::BadConversion,
-  static YamlConfigParser &Create(const std::string_view &cfg_file_path);
-
-  static YamlConfigParser &Get();
-
  private:
-  explicit YamlConfigParser(const std::string_view &cfg_file_path);
-
   LogLimits ParseLogLimits();
-  std::string ParseDefaultLogContextId();
-  std::string ParseLogAppenderType();
-  std::map<std::string, std::string> ParseLogAppenderParams();
+  std::array<char, 4> ParseDefaultLogContext();
+  std::chrono::milliseconds ParseFlushPeriod();
+  std::string_view ParseTriggerFlushIfLogLevelReaches();
+  std::string_view ParseLogAppenderType();
+  std::map<std::string_view, std::string_view> ParseLogAppenderParams();
 
  private:
-  static std::unique_ptr<YamlConfigParser> instance_;
-
   YAML::Node config_;
   const LogLimits log_limits_;
-  const std::string default_log_context_id_;
-  const std::string log_appender_type_;
-  const std::map<std::string, std::string> log_appender_params_;
+  const std::array<char, 4> default_log_context_;
+  const std::chrono::milliseconds flush_period_ms_;
+  const std::string_view trigger_flush_if_log_level_reaches_;
+  const std::string_view log_appender_type_;
+  const std::map<std::string_view, std::string_view> log_appender_params_;
 };
 
 }  // namespace config_parser
