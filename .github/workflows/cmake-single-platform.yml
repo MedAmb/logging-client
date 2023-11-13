@@ -27,5 +27,5 @@ jobs:
       run: cmake -B ${{github.workspace}}/build && cmake --build ${{github.workspace}}/build
 
     - name: unit-test
-      run: ctest --test-dir=${{github.workspace}}/build --overwrite MemoryCheckCommandOptions="--leak-check=full --error-exit-code=100" -R unit_test --parallel 10 --schedule-random --output-on-failure --no-compress-output
+      run: ctest --test-dir ${{github.workspace}}/build --overwrite MemoryCheckCommandOptions="--leak-check=full --error-exit-code=100" -R unit_test --parallel 10 --schedule-random --output-on-failure --no-compress-output --progress
 

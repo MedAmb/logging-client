@@ -1,74 +1,127 @@
 #include "yaml_config_parser.hpp"
 
+#include <algorithm>
+
+#include "config_constants.hpp"
+
 namespace logger {
 namespace config_parser {
 
-std::unique_ptr<YamlConfigParser> YamlConfigParser::instance_{nullptr};
-
-YamlConfigParser &YamlConfigParser::Create(
-    const std::string_view &cfg_file_path) {
-  if (instance_ == nullptr) {
-    instance_ =
-        std::unique_ptr<YamlConfigParser>{new YamlConfigParser{cfg_file_path}};
-  }
-  return *instance_;
-}
-
-YamlConfigParser &YamlConfigParser::Get() {
-  // TODO: let's avoid throwing exceptions, think of better error
-  if (instance_ == nullptr) {
-    throw std::runtime_error{"YamlConfigParser has not been created yet"};
-  }
-  return *instance_;
-}
-
-YamlConfigParser::YamlConfigParser(const std::string_view &cfg_file_path)
-    : config_{YAML::LoadFile(cfg_file_path.data())},
+YamlConfigParser::YamlConfigParser(const std::string &cfg_file_path)
+    : config_{YAML::LoadFile(cfg_file_path)},
       log_limits_{ParseLogLimits()},
-      default_log_context_id_{ParseDefaultLogContextId()},
+      default_log_context_{ParseDefaultLogContext()},
+      flush_period_ms_{ParseFlushPeriod()},
+      trigger_flush_if_log_level_reaches_{ParseTriggerFlushIfLogLevelReaches()},
       log_appender_type_{ParseLogAppenderType()},
       log_appender_params_{ParseLogAppenderParams()} {}
 
-LogLimits YamlConfigParser::GetLogLimits() const { return log_limits_; }
+const LogLimits &YamlConfigParser::GetLogLimits() const { return log_limits_; }
 
-std::string YamlConfigParser::GetDefaultLogContextId() const {
-  return default_log_context_id_;
+const std::array<char, 4> &YamlConfigParser::GetDefaultLogContext() const {
+  return default_log_context_;
 }
 
-std::string YamlConfigParser::GetLogAppenderType() const {
+const std::chrono::milliseconds &YamlConfigParser::GetFlushPeriod() const {
+  return flush_period_ms_;
+}
+
+const std::string_view &YamlConfigParser::GetTriggerFlushIfLogLevelReaches()
+    const {
+  return trigger_flush_if_log_level_reaches_;
+}
+
+const std::string_view &YamlConfigParser::GetLogAppenderType() const {
   return log_appender_type_;
 }
 
-const std::map<std::string, std::string>
+const std::map<std::string_view, std::string_view>
     &YamlConfigParser::GetLogAppenderParams() const {
   return log_appender_params_;
 }
 
 LogLimits YamlConfigParser::ParseLogLimits() {
-  const auto log_limits_node = config_["log_limits"];
-  const auto period = std::chrono::milliseconds(
-      log_limits_node["period_ms"].as<std::uint64_t>());
-  const auto max_size_during_period =
-      log_limits_node["log_size_limit_during_period_in_bytes"]
-          .as<std::size_t>();
-  return {period, max_size_during_period};
-}
+  LogLimits log_limits;
 
-std::string YamlConfigParser::ParseDefaultLogContextId() {
-  return config_["default_log_context_id"].as<std::string>();
-}
-
-std::string YamlConfigParser::ParseLogAppenderType() {
-  return config_["log_appender"]["type"].as<std::string>();
-}
-
-std::map<std::string, std::string> YamlConfigParser::ParseLogAppenderParams() {
-  std::map<std::string, std::string> log_appender_params;
-  const auto log_appender_params_node = config_["log_appender"]["params"];
-  for (const auto &param : log_appender_params_node) {
-    log_appender_params[param.first.as<std::string>()] =
-        param.second.as<std::string>();
+  if (!config_[kLogLimitsKey]) {
+    log_limits = {std::chrono::milliseconds{kDefaultLimitPeriodMs},
+                  kDefaultLogSizeLimitDuringPeriodInBytes};
+  } else {
+    log_limits = {
+        std::chrono::milliseconds{
+            config_[kLogLimitsKey][kLimitPeriodMsKey].as<std::uint64_t>()},
+        config_[kLogLimitsKey][kLogSizeLimitDuringPeriodInBytesKey]
+            .as<std::size_t>()};
   }
+
+  return log_limits;
+}
+
+std::array<char, 4> YamlConfigParser::ParseDefaultLogContext() {
+  std::array<char, 4> default_log_context;
+
+  if (!config_[kDefaultLogContextKey]) {
+    default_log_context = kDefaultLogContext;
+  } else {
+    std::string_view default_log_context_str =
+        config_[kDefaultLogContextKey].as<std::string_view>();
+    std::copy_n(
+        default_log_context_str.begin(),
+        std::min(default_log_context_str.size(), default_log_context.size()),
+        default_log_context.begin());
+  }
+  return default_log_context;
+}
+
+std::chrono::milliseconds YamlConfigParser::ParseFlushPeriod() {
+  std::chrono::milliseconds flush_period_ms;
+
+  if (!config_[kFlushPeriodMsKey]) {
+    flush_period_ms = std::chrono::milliseconds{kDefaultFlushPeriodMs};
+  } else {
+    flush_period_ms = std::chrono::milliseconds{
+        config_[kFlushPeriodMsKey].as<std::uint64_t>()};
+  }
+  return flush_period_ms;
+}
+
+std::string_view YamlConfigParser::ParseTriggerFlushIfLogLevelReaches() {
+  std::string_view trigger_flush_if_log_level_reaches;
+
+  if (!config_[kTriggerFlushIfLogLevelReaches]) {
+    trigger_flush_if_log_level_reaches = kDefaultTriggerFlushIfLogLevelReaches;
+  } else {
+    trigger_flush_if_log_level_reaches =
+        config_[kTriggerFlushIfLogLevelReaches].as<std::string_view>();
+  }
+
+  return trigger_flush_if_log_level_reaches;
+}
+
+std::string_view YamlConfigParser::ParseLogAppenderType() {
+  std::string_view log_appender_type;
+
+  if (!config_[kLogAppenderKey][kLogAppenderTypeKey]) {
+    log_appender_type = kLogAppenderTypeDefault;
+  } else {
+    log_appender_type =
+        config_[kLogAppenderKey][kLogAppenderTypeKey].as<std::string_view>();
+  }
+  return log_appender_type;
+}
+
+std::map<std::string_view, std::string_view>
+YamlConfigParser::ParseLogAppenderParams() {
+  std::map<std::string_view, std::string_view> log_appender_params;
+
+  if (!config_[kLogAppenderKey][kLogAppenderParamsKey]) {
+    log_appender_params = {};
+  } else {
+    log_appender_params =
+        config_[kLogAppenderKey][kLogAppenderParamsKey]
+            .as<std::map<std::string_view, std::string_view>>();
+  }
+
   return log_appender_params;
 }
 

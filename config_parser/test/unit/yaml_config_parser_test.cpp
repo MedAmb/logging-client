@@ -1,101 +1,166 @@
 #include "yaml_config_parser.hpp"
 
+#include <filesystem>
 #include <fstream>
 
+#include "config_constants.hpp"
 #include "gtest/gtest.h"
 
-TEST(YamlConfigParserTest, CreateFailFileDoesNotExist) {
-  const std::string_view cfg_file_path = "/path/does/not/exist";
-  EXPECT_THROW(logger::config_parser::YamlConfigParser::Create(cfg_file_path),
-               YAML::BadFile);
-}
+using namespace logger::config_parser;
 
-TEST(YamlConfigParserTest, CreateFailFileIsNotYaml) {
-  const std::string_view cfg_file_path = "/tmp/test.yaml";
-  std::ofstream ofs(cfg_file_path.data());
-  ofs << "some content";
-  ofs.close();
-  EXPECT_THROW(logger::config_parser::YamlConfigParser::Create(cfg_file_path),
-               YAML::BadSubscript);
-  std::remove(cfg_file_path.data());
-}
+class YamlConfigParserTestFixture : public ::testing::Test {
+ public:
+  YamlConfigParserTestFixture() = default;
+  ~YamlConfigParserTestFixture() override = default;
 
-TEST(YamlConfigParserTest, CreateFailFileIsNotValidYaml) {
-  const std::string_view cfg_file_path = "/tmp/test.yaml";
-  std::ofstream ofs(cfg_file_path.data());
-  ofs << "some: content";
-  ofs.close();
-  EXPECT_THROW(logger::config_parser::YamlConfigParser::Create(cfg_file_path),
-               YAML::InvalidNode);
-  std::remove(cfg_file_path.data());
-}
+  void TearDown() override { std::filesystem::remove(cfg_file_path_); }
 
-TEST(YamlConfigParserTest, CreateFailBadLogLimits) {
-  const std::string_view cfg_file_path = "/tmp/test.yaml";
-  std::ofstream ofs(cfg_file_path.data());
-  ofs << "log_limits:\n"
-         "  period_ms: period\n"
-         "  log_size_limit_during_period_in_bytes: 1000\n"
-         "default_log_context_id: \"default\"\n"
-         "log_appender:\n"
-         "  type: \"file\"\n"
-         "  params:\n"
-         "    file_path: \"/tmp/test.log\"\n";
-  ofs.close();
-  EXPECT_THROW(logger::config_parser::YamlConfigParser::Create(cfg_file_path),
-               YAML::BadConversion);
-  std::remove(cfg_file_path.data());
-}
+  const std::string& GetConfigFilePath() const { return cfg_file_path_; }
 
-TEST(YamlConfigParserTest, WrongGetCall) {
-  try {
-    logger::config_parser::YamlConfigParser::Get();
-    FAIL() << "Expected std::runtime_error";
-  } catch (std::runtime_error const& err) {
-    EXPECT_EQ(err.what(),
-              std::string("YamlConfigParser has not been created yet"));
-  } catch (...) {
-    FAIL() << "Expected std::runtime_error";
+  void CreateConfigFile(const std::string& content) {
+    ofs_.open(cfg_file_path_);
+    ofs_ << content;
+    ofs_.close();
   }
+
+ private:
+  const std::string cfg_file_path_ = "/tmp/test.yaml";
+  std::ofstream ofs_{};
+};
+
+TEST_F(YamlConfigParserTestFixture, YamlConfigParserFileDoesNotExist) {
+  EXPECT_THROW(YamlConfigParser{GetConfigFilePath()}, YAML::BadFile);
 }
 
-TEST(YamlConfigParserTest, YamlParsedCorrectly) {
-  const std::string_view cfg_file_path = "/tmp/test.yaml";
-  std::ofstream ofs(cfg_file_path.data());
-  ofs << "log_limits:\n"
-         "  period_ms: 1000\n"
-         "  log_size_limit_during_period_in_bytes: 1000\n"
-         "default_log_context_id: DFLT\n"
-         "log_appender:\n"
-         "  type: \"file\"\n"
-         "  params:\n"
-         "    file_path: \"/tmp/test.log\"\n"
-         "    rotating: true\n"
-         "    max_size_in_bytes: 1000\n"
-         "    max_files: 10\n"
-         "    format: \"[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] [%c] [%f:%n] [%v]\"\n";
+TEST_F(YamlConfigParserTestFixture, YamlConfigParserFileIsNotYaml) {
+  CreateConfigFile("some content\nsome content\n");
+  EXPECT_THROW(YamlConfigParser{GetConfigFilePath()}, YAML::BadSubscript);
+}
 
-  ofs.close();
+TEST_F(YamlConfigParserTestFixture, YamlConfigParserYamlIsMalformed) {
+  CreateConfigFile("some content\nsome: content\nsome: content\n");
+  EXPECT_THROW(YamlConfigParser{GetConfigFilePath()}, YAML::ParserException);
+}
 
-  EXPECT_NO_THROW(
-      logger::config_parser::YamlConfigParser::Create(cfg_file_path));
-  auto& parser = logger::config_parser::YamlConfigParser::Get();
+TEST_F(YamlConfigParserTestFixture,
+       YamlConfigParserBadConversionlimit_period_in_ms) {
+  CreateConfigFile(
+      "log_limits:\n"
+      "  limit_period_in_ms: 10k00\n"  // bad conversion
+      "  log_size_limit_during_period_in_bytes: 1000\n");
 
-  auto log_limits =
-      logger::config_parser::LogLimits{std::chrono::milliseconds{1000}, 1000};
+  EXPECT_THROW(YamlConfigParser{GetConfigFilePath()}, YAML::BadConversion);
+}
 
-  EXPECT_EQ(parser.GetLogLimits(), log_limits);
-  EXPECT_EQ(parser.GetDefaultLogContextId(), "DFLT");
-  EXPECT_EQ(parser.GetLogAppenderType(), "file");
+TEST_F(YamlConfigParserTestFixture,
+       YamlConfigParserBadConversionlog_size_limit_during_period_in_bytes) {
+  CreateConfigFile(
+      "log_limits:\n"
+      "  limit_period_in_ms: 1000\n"
+      "  log_size_limit_during_period_in_bytes: 10k00\n");  // bad conversion
 
-  auto params = parser.GetLogAppenderParams();
+  EXPECT_THROW(YamlConfigParser{GetConfigFilePath()}, YAML::BadConversion);
+}
 
-  EXPECT_EQ(params.at("file_path"), "/tmp/test.log");
-  EXPECT_EQ(params.at("rotating"), "true");
-  EXPECT_EQ(params.at("max_size_in_bytes"), "1000");
-  EXPECT_EQ(params.at("max_files"), "10");
+TEST_F(YamlConfigParserTestFixture,
+       YamlConfigParserBadConversionflush_period_in_ms) {
+  CreateConfigFile("flush_period_in_ms: 10k00\n");  // bad conversion
+  EXPECT_THROW(YamlConfigParser{GetConfigFilePath()}, YAML::BadConversion);
+}
+
+TEST_F(YamlConfigParserTestFixture,
+       YamlConfigParserBadConversionIllformedParamMap) {
+  CreateConfigFile(
+      "log_appender:\n"
+      "  type: \"console\"\n"
+      "  params:\n"
+      "     some:\n"
+      "     some: content\n");
+
+  EXPECT_THROW(YamlConfigParser{GetConfigFilePath()}, YAML::BadConversion);
+}
+
+TEST_F(YamlConfigParserTestFixture,
+       YamlConfigParserUsingDefaultValuesWhenConfigIsEmpty) {
+  CreateConfigFile("");
+  auto config = YamlConfigParser{GetConfigFilePath()};
+
+  EXPECT_EQ(config.GetLogLimits().limitPeriodMs,
+            std::chrono::milliseconds{kDefaultLimitPeriodMs});
+  EXPECT_EQ(config.GetLogLimits().logLimitDuringPeriodInBytes,
+            kDefaultLogSizeLimitDuringPeriodInBytes);
+  EXPECT_EQ(config.GetDefaultLogContext(), kDefaultLogContext);
+  EXPECT_EQ(config.GetFlushPeriod(),
+            std::chrono::milliseconds{kDefaultFlushPeriodMs});
+  EXPECT_EQ(config.GetTriggerFlushIfLogLevelReaches(),
+            kDefaultTriggerFlushIfLogLevelReaches);
+  EXPECT_EQ(config.GetLogAppenderType(), kLogAppenderTypeDefault);
+  EXPECT_TRUE(config.GetLogAppenderParams().empty());
+}
+
+TEST_F(YamlConfigParserTestFixture,
+       YamlConfigParserUsingDefaultForMissingValue) {
+  CreateConfigFile(
+      "default_log_context: DFLT\n"
+      "flush_period_in_ms: 1000\n"
+      "trigger_flush_if_log_level_reaches: CRITICAL\n"
+      "log_appender:\n"
+      "  type: \"console\"\n"
+      "  params:\n"
+      "    format: \"[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] [%c] [%f:%n] [%v]\"\n");
+
+  auto config = YamlConfigParser{GetConfigFilePath()};
+
+  EXPECT_EQ(config.GetLogLimits().limitPeriodMs,
+            std::chrono::milliseconds{kDefaultLimitPeriodMs});
+  EXPECT_EQ(config.GetLogLimits().logLimitDuringPeriodInBytes,
+            kDefaultLogSizeLimitDuringPeriodInBytes);
+
+  auto default_log_context = std::array<char, 4>{'D', 'F', 'L', 'T'};
+  EXPECT_EQ(config.GetDefaultLogContext(), default_log_context);
+
+  EXPECT_EQ(config.GetFlushPeriod(), std::chrono::milliseconds{1000});
+
+  EXPECT_EQ(config.GetTriggerFlushIfLogLevelReaches(), "CRITICAL");
+
+  EXPECT_EQ(config.GetLogAppenderType(), "console");
+
+  auto params = config.GetLogAppenderParams();
+
   EXPECT_EQ(params.at("format"),
             "[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] [%c] [%f:%n] [%v]");
+}
 
-  std::remove(cfg_file_path.data());
+TEST_F(YamlConfigParserTestFixture, YamlConfigParserUsingProvidedValues) {
+  CreateConfigFile(
+      "log_limits:\n"
+      "  limit_period_in_ms: 1000\n"
+      "  log_size_limit_during_period_in_bytes: 1000\n"
+      "default_log_context: DFLT\n"
+      "flush_period_in_ms: 1000\n"
+      "trigger_flush_if_log_level_reaches: CRITICAL\n"
+      "log_appender:\n"
+      "  type: \"console\"\n"
+      "  params:\n"
+      "    format: \"[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] [%c] [%f:%n] [%v]\"\n");
+
+  auto config = YamlConfigParser{GetConfigFilePath()};
+
+  EXPECT_EQ(config.GetLogLimits().limitPeriodMs,
+            std::chrono::milliseconds{1000});
+  EXPECT_EQ(config.GetLogLimits().logLimitDuringPeriodInBytes, 1000);
+
+  auto default_log_context = std::array<char, 4>{'D', 'F', 'L', 'T'};
+  EXPECT_EQ(config.GetDefaultLogContext(), default_log_context);
+
+  EXPECT_EQ(config.GetFlushPeriod(), std::chrono::milliseconds{1000});
+
+  EXPECT_EQ(config.GetTriggerFlushIfLogLevelReaches(), "CRITICAL");
+
+  EXPECT_EQ(config.GetLogAppenderType(), "console");
+
+  auto params = config.GetLogAppenderParams();
+
+  EXPECT_EQ(params.at("format"),
+            "[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] [%c] [%f:%n] [%v]");
 }
